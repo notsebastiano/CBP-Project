@@ -1,9 +1,12 @@
+'''
+auxiliary library to perform the calculation of network measures on adjacency matrices / graphs
 
-
+author: Sebastiano Bontorin <sebastiano.bontorin@studenti.unitn.it>
+'''
 import numpy as np
 import matplotlib.pyplot as plt
 import MDAnalysis as mda
-from mpl_toolkits.mplot3d import Axes3D
+#from mpl_toolkits.mplot3d import Axes3D
 
 from MDAnalysis.analysis import align
 import MDAnalysis.analysis.rms as rms
@@ -47,19 +50,36 @@ def get_degrees(G):
 	l = G.number_of_nodes()
 	for i in range(l):
 		a = G.degree(weight = 'weight')[i]
-		#a = G.degree()[i]
 		deg.append(a)
 	return deg
 
+#
+# main functions
+#
 
 def small_worldness_vs_persistence(adj,upper_threshold,delta,
 								   images_path,data_path,name):
-	''' these algorithms require a fully connected matrix therefore
-	consider adding dummy edges - like peptide bonds '''
+	''' 
+	These algorithms require a fully connected adjacency matrix.
+	Performs measures of clustering coefficient and average
+	shortest path length for every graph reconstructed from 
+	threshold values. 
+
+	------
+	Args:
+			- adj: Adjacency matrix - numpy.ndarray
+			- upper_threshold: for threshold values
+			- delta: increment in threshold_values
+			- data_path: path to save C and L data as functions of threhsold_values
+			- images_path: path to save the plot
+	'''
 
 	threshold_values = np.arange(1e-5,upper_threshold,delta)
 	G_0 = gen_graph(adj,cutoff = 1e-5)
 	G_2 = gen_graph(adj,cutoff = upper_threshold)
+
+	if nx.is_connected(G_2) is not True:
+		raise ValueError("Reconstructed graph for upper_threshold chosen is not connected")
 
 	avg_c0 = nx.algorithms.cluster.average_clustering(G_0,weight='weight')
 	avg_L0 = nx.average_shortest_path_length(G_2, weight='weight')
@@ -102,8 +122,28 @@ def sizeGCC_vs_persistence(adj,threshold_values,
 						   sigmoid_guess = 0.4,
 						   show = True):
 	'''
-	# identify largest connected component as function of threshold for 
-	# network built with whole 3 non bonded long range interactions
+	Identify largest connected component as function of threshold for a set
+	of possible threshold_values. For the series of GCC size then fits a sigmoid 
+	and identifies critical threshold using sigmoid flex
+	
+	! WORKING WITH THIS CHOICE OF THRESHOLD VALUES !
+	Different values require to change the way data is padded (different delta):
+
+	> threshold_values = np.arange(0.0,0.999,0.01)
+
+	------
+	Args:
+			- adj: Adjacency matrix - numpy.ndarray
+			- threshold_values = np.arange(0.0,0.999,0.01)
+			- name: name for the file
+			- data_path: path to save C and L data as functions of threhsold_values
+			- images_path: path to save the plot
+
+	Kwargs:
+			- sigmoid_guess: first guess for the sigmoid flex fit, consider
+							 using show=True to cjeck visually if fitting is performed
+							 properly
+			- show: show fitted GCC size
 	'''
 	n = len(adj[0])
 	G_size = []
@@ -116,6 +156,7 @@ def sizeGCC_vs_persistence(adj,threshold_values,
 	# saving data.
 	storing_data = np.array([threshold_values,G_size])
 	np.savetxt(data_path + "GCCsize_persistence_{}.csv".format(name), storing_data)
+
 	# fitting a sigmoid - padding
 	y = np.array(G_size)
 	y_before,y_after = np.ones(50),np.ones(50)*min(G_size)

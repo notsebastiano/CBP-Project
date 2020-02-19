@@ -1,7 +1,13 @@
+'''
+auxiliary library to perform the calculation of standard measures
+
+author: Sebastiano Bontorin <sebastiano.bontorin@studenti.unitn.it>
+'''
+
 import numpy as np
 import matplotlib.pyplot as plt
 import MDAnalysis as mda
-from mpl_toolkits.mplot3d import Axes3D
+#from mpl_toolkits.mplot3d import Axes3D
 
 from MDAnalysis.analysis import align
 import MDAnalysis.analysis.rms as rms
@@ -25,28 +31,30 @@ def gen_graph(adj,cutoff = 0.0):
 				G.add_edge(i,j, weight = adj[i][j])
 	return G
 
-'''
-if 1:
-	PDB = "/Users/sebastiano/Desktop/A89G_analysis/recmut_memb_data/first_dcd_frame_run1.pdb"
-	#PDB = "/Users/sebastiano/Desktop/A89G_analysis/recmut_memb_data/firstdcdframe_run8.pdb"
-	PSF = "/Users/sebastiano/Desktop/G05-rec-membrane/recmut-membrane_production/run_1/recmut_memb_ionized.psf"
-	# put full DCD HERE
-	DCD = "/Users/sebastiano/Desktop/A89G_analysis/recmut_memb_data/recmut_run1to41.dcd" #full run
-	#DCD = "/Users/sebastiano/Desktop/A89G_analysis/recmut_memb_data/equilibrium_run8to41.dcd" 
-'''
-
 
 
 def rmsd_heatmap(PDB,DCD,PSF, dt = 0.02, sel = "name CA",
 	data_path = "analysis_A89G/data/",
 	images_path = "analysis_A89G/images/"):
 	'''
+	Generates rmsf and rmsd of data by fist creating the heatmap of deviations:
 	- heatmap[s][t] is root mean square distance of atom s at time t wrt ref frame:
 	  once heatmap is computed after aligning the traj I can recall rmsd and rmsf by summing over
 	  columns and rows respectively
-	- this full rmsd of fitted frame is validated through comparison with:
+	- the resulting rmsd with frames aligned with reference is validated by reproducing MDAnalysis result:
 	  rms.rmsd(ref_frame, frame_i, center=True, superposition = True)
+	------
+	Args:
+			- PDB: pdb file
+			- DCD: trajectory file
+			- PSF: psf file
+	Kwargs:
+			- dt: timestep
+			- sel: atom selection on which rmsd is performed
+			- data_path: path to save the heatmap matrix, rmsd and rmsf data
+			- images_path: path to save the plot of rmsd and rmsf
 	'''
+
 	ref = mda.Universe(PSF,PDB)
 	trj = mda.Universe(PSF,DCD)
 	L = len(trj.trajectory)
@@ -56,32 +64,28 @@ def rmsd_heatmap(PDB,DCD,PSF, dt = 0.02, sel = "name CA",
 	ref_frame = ref.select_atoms(sel).positions.copy()
 	n_alphas = len(ref_frame)
 
-	if 1:
-		print "generating heatmap for {} c-alpha in a {} frames trajectory".format(str(n_alphas),str(nframes))
-		heatmap = np.zeros(shape =(n_alphas,int(L))) 
-		full_rmsd,rmsf = [],[]
+	print "generating heatmap for {} c-alpha in a {} frames trajectory".format(str(n_alphas),str(nframes))
+	heatmap = np.zeros(shape =(n_alphas,int(L))) 
+	full_rmsd,rmsf = [],[]
 
-		for t in range(0,int(L)):
-			trj.trajectory[t]
-			align.alignto(trj, ref, select="name CA", weights="mass")
-			frame_t = trj.select_atoms("name CA").positions.copy()
+	for t in range(0,int(L)):
+		trj.trajectory[t]
+		align.alignto(trj, ref, select="name CA", weights="mass")
+		frame_t = trj.select_atoms("name CA").positions.copy()
 
-			for j in range(0,n_alphas):
-				rmsd_j = np.linalg.norm( frame_t[j] - ref_frame[j])
-				heatmap[j][t] = rmsd_j
+		for j in range(0,n_alphas):
+			rmsd_j = np.linalg.norm( frame_t[j] - ref_frame[j])
+			heatmap[j][t] = rmsd_j
 
-			full_rmsd.append( np.sqrt(np.mean( heatmap[:,t]**2)))
+		full_rmsd.append( np.sqrt(np.mean( heatmap[:,t]**2)))
 
-		for i in range(0,n_alphas):
-			rmsf.append( np.sqrt( np.mean( heatmap[i]**2)))
+	for i in range(0,n_alphas):
+		rmsf.append( np.sqrt( np.mean( heatmap[i]**2)))
 
-		# save data
-		np.savetxt(data_path+"heatmap.csv",heatmap)
-		np.savetxt(data_path+"rmsd.csv",full_rmsd)
-		np.savetxt(data_path+"rmsf.csv",rmsf)
-
-	#full_rmsd = np.loadtxt(data_path+"rmsd.csv")
-	#rmsf = np.loadtxt(data_path+"rmsf.csv")
+	# save data
+	np.savetxt(data_path+"heatmap.csv",heatmap)
+	np.savetxt(data_path+"rmsd.csv",full_rmsd)
+	np.savetxt(data_path+"rmsf.csv",rmsf)
 
 	#
 	# generate and save images
@@ -95,8 +99,6 @@ def rmsd_heatmap(PDB,DCD,PSF, dt = 0.02, sel = "name CA",
 	plt.ylim(0, np.max(full_rmsd)+1.0)
 	plt.legend(loc='upper left')
 	plt.savefig(images_path +"rmsd.png",dpi = 450)
-
-	plt.show()
 	plt.close()
 
 	plt.bar(range(1,len(rmsf)+1), rmsf)
@@ -106,22 +108,7 @@ def rmsd_heatmap(PDB,DCD,PSF, dt = 0.02, sel = "name CA",
 	plt.legend(loc='upper left')
 	plt.savefig(images_path +"rmsf.png",dpi = 450)
 	plt.close()
-
-	if 0:
-		# plotting the heatmap
-		ext_heatmap = np.zeros(shape= (len(heatmap)*15, int(len(heatmap[0])/2.0)+1))
-
-		for j in range(0,len(heatmap[0]),2):
-			for i in range(0,len(heatmap)):
-				for k in range(15):
-					ext_heatmap[i*15+k][int(j/2.0)] = heatmap[i][j]**2
-		plt.imshow(ext_heatmap,cmap = "inferno",extent=[0,200,201,0])
-		plt.ylabel("Carbon Alpha")
-		plt.xlabel("Time [ns]")
-		plt.clim(0,25) # setting upper limit
-		plt.title("Atomic deviations heatmap")
-		plt.savefig(images_path +"heatmap.png",dpi = 450)
-		plt.close()
+	
 
 
 def spearman_correlation_rmsd(rmsd_path,time_range,images_path):
@@ -147,7 +134,18 @@ def compute_measures(PDB,DCD,dt = 0.02, sel = "name CA",
 	'''
 	computes:
 	- RGYR - DISTANCE MEMB PROTEIN - DISTANCE MEMB MYR
-	- this function was copied from the mighty fabio.mazza
+	- partial code of this function comes from the mighty fabio.mazza: <https://github.com/Kryohi>
+
+	saves data and plots in given paths
+	------
+	Args:
+			- PDB: pdb file
+			- DCD: trajectory file
+	Kwargs:
+			- dt: timestep
+			- sel: atom selection on which rmsd is performed
+			- data_path: path to save the heatmap matrix, rmsd and rmsf data
+			- images_path: path to save the plot of rmsd and rmsf
 	'''
 	ref = mda.Universe(PDB)
 	trj = mda.Universe(PDB,DCD)
@@ -169,11 +167,12 @@ def compute_measures(PDB,DCD,dt = 0.02, sel = "name CA",
 	plt.close()
 
 	### dist membrane - protein
+
 	# center of mass of the membrane
 	memb = trj.select_atoms('resname DGPS DGPC DGPE')
 	memb_cdm = np.array([memb.center_of_mass() for ts in trj.trajectory[:]])
 	memb_z = memb_cdm[:,2]
-	# z of the center of mass of the protein, minus the z of the cdm of the membrane
+	# z of the center of mass of the protein, minus the z of the com of the membrane
 	prot = trj.select_atoms('protein and name CA')
 	prot_cdm = np.array([prot.center_of_mass() for ts in trj.trajectory[:]])
 	prot_z = prot_cdm[:,2]
@@ -189,7 +188,8 @@ def compute_measures(PDB,DCD,dt = 0.02, sel = "name CA",
 	plt.close()
 
 	### dist membrane - myr
-	# z of the center of mass of the myristoil, minus the z of the cdm of the membrane
+
+	# z of the center of mass of the myristoil, minus the z of the com of the membrane
 	myr = trj.select_atoms('resname GLYM')
 	myr_cdm = np.array([myr.center_of_mass() for ts in trj.trajectory[:]])
 	myr_z = myr_cdm[:,2]
@@ -207,35 +207,6 @@ def compute_measures(PDB,DCD,dt = 0.02, sel = "name CA",
 
 
 
-
-
-'''
-PCA
-if 0:
-	PSF_pca = pca.PCA(trj, select='name CA', align=True) # meglio align o no?
-	PSF_pca.run()
-
-	# select components that explain >95 percent of the variance
-	n_pcs = np.where(PSF_pca.cumulated_variance > 0.95)[0][0]
-	print(np.where(PSF_pca.cumulated_variance > 0.95)[:][0])
-	atomgroup = trj.select_atoms('name CA')
-	pca_space = PSF_pca.transform(atomgroup, n_components=3)
-
-	## plot of the 3 main components
-	fig = plt.figure()
-	ax = fig.add_subplot(111, projection='3d')
-	pca3d = ax.scatter(pca_space[:,0], pca_space[:,1], pca_space[:,2], s=2, alpha=0.8, c=np.arange(nframes))
-	cbar=fig.colorbar(pca3d)
-	cbar.set_label("Frames")
-
-	for angle in range(0, 360):
-		ax.view_init(30, angle)
-		plt.draw()
-		plt.pause(.001)
-
-	plt.title("Plot of first 3 PCA eigenvectors along the traj - A89G")
-	plt.show()
-'''
 
 
 

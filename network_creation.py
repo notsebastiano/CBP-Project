@@ -1,13 +1,16 @@
+'''
+auxiliary library to perform the creation of distance based networks
+and cross correlation matrices
 
+author: Sebastiano Bontorin <sebastiano.bontorin@studenti.unitn.it>
+'''
 
 import numpy as np
 import matplotlib.pyplot as plt
 import MDAnalysis as mda
-from mpl_toolkits.mplot3d import Axes3D
-
+#from mpl_toolkits.mplot3d import Axes3D
 from MDAnalysis.analysis import align
 import MDAnalysis.analysis.rms as rms
-
 
 import networkx as nx
 import scipy
@@ -43,13 +46,27 @@ def gen_graph(adj,cutoff = 0.00001):
 	return G
 
 
-# 	reqires network at equilibrium
+# 	requires network at equilibrium
 def distance_persistence_matrix(
 	PDB,DCD,
 	dt = 0.02, dist_cutoff = 5.0, start = 0,sampling_freq = 1,
 	data_path = "dummy/data/"):
 	'''
-	assume this is performed on a trajectory at equilibrium
+	Persistence ij is calculated as the fraction of configurations in which
+	atoms were at distance smaller than dist_cutoff.
+	------
+	Args:
+			- PDB: pdb file
+			- DCD: trajectory file
+	Kwargs:
+			- dt: timestep
+			- dist_cutoff: cutoff limit
+			- start: point of the trajectory to start the analysis
+				sampling_freq: sampling frequency of frames along the traj 
+				used to evaluate distances
+			- data_path: path to save data
+
+	Returns: nothing, saves persistece matrix in data_path
 	'''
 
 	ref = mda.Universe(PDB)
@@ -86,6 +103,17 @@ def distance_persistence_matrix(
 def build_DCCM_matrix(PDB,DCD,dt = 0.02,
 							 data_path = "dummy/",
 							 images_path = "dummy/"):
+	'''
+	Creates the dynamical cross correlation matrix for atoms in a trajectory
+	------
+	Args:
+			- PDB: pdb file
+			- DCD: trajectory file
+	Kwargs:
+			- dt: timestep
+			- data_path: path to save the DCCM matrix as a nd.array (.csv file)
+			- images_path: path to save the plot of the DCCM
+	'''
 
 	ref = mda.Universe(PDB)
 	trj = mda.Universe(PDB,DCD)
@@ -110,13 +138,14 @@ def build_DCCM_matrix(PDB,DCD,dt = 0.02,
 		align.alignto(trj, ref, select="name CA", weights="mass")
 		frame_t = trj.select_atoms("name CA").positions.copy()
 
-		for i in range(n_alphas): #still a position vector of displacement
+		for i in range(n_alphas):
 			positions[i][t] = frame_t[i]
 
 	avg_positions = [np.mean(positions[i],axis = 0) for i in range(n_alphas)]
 
-	# naming them self similiarities but actually is just the ensemble average of th
+	# naming them self similiarities but actually is just the ensemble average of the
 	# dot product of delta_i with itself (similarity name from the dot product operation)
+
 	self_similarities = []
 	for i in range(n_alphas):
 		sim_ii = []
@@ -128,13 +157,15 @@ def build_DCCM_matrix(PDB,DCD,dt = 0.02,
 	for i in range(n_alphas):
 		for j in range(n_alphas):
 			if j != i:
-				# performing ensemble average of dot product between displacements
-				# of atom i and atom j
+				# performing ensemble average of dot product between displacements of atoms i and j
 				similarity_ij = [np.dot(delta[i][t],delta[j][t]) for t in range(L)]
 				similarity_ij = np.mean(np.array(similarity_ij))
 
 				C_mat[i][j] = similarity_ij/np.sqrt(self_similarities[i]*self_similarities[j])
 
+	#
+	# save and plot data
+	#
 	np.savetxt(data_path+"DCCM_equilibrium_Calpha.csv",C_mat)
 
 	plt.imshow(C_mat, cmap = "bone",extent = [0,201,201,0])
